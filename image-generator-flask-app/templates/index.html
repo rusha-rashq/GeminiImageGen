@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Event Banner Generator</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4">
+  <div class="w-full max-w-2xl bg-white rounded-xl shadow-lg overflow-hidden">
+    <!-- Tabs -->
+    <nav class="flex justify-center bg-gray-50 border-b">
+      <button
+        id="tab-generate-btn"
+        class="w-1/2 py-3 text-center font-medium text-blue-600 border-b-2 border-blue-600 focus:outline-none"
+        onclick="openTab('generate')"
+      >
+        Generate Image
+      </button>
+      <button
+        id="tab-history-btn"
+        class="w-1/2 py-3 text-center font-medium text-gray-600 hover:text-blue-600 border-b-2 border-transparent focus:outline-none"
+        onclick="openTab('history')"
+      >
+        View History
+      </button>
+    </nav>
+
+    <!-- Generate Tab Content -->
+    <section id="generate" class="p-8">
+      <h1 class="text-2xl font-semibold text-gray-800 mb-6 text-center">
+        Event Banner Generator
+      </h1>
+      <div class="space-y-4">
+        <input
+          type="text"
+          id="prompt"
+          placeholder="Describe your image..."
+          class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+        />
+
+        <div class="flex items-center space-x-3">
+          <label for="aspect-ratio" class="text-gray-700 font-medium">
+            Aspect Ratio:
+          </label>
+          <select
+            id="aspect-ratio"
+            class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+          >
+            <option value="1:1">Square (1:1)</option>
+            <option value="16:9">Widescreen (16:9)</option>
+            <option value="4:3">Classic (4:3)</option>
+            <option value="3:4">Portrait (3:4)</option>
+          </select>
+        </div>
+
+        <button
+          id="generate-button"
+          onclick="generateImage()"
+          class="w-full bg-blue-600 text-white font-semibold py-3 rounded-lg hover:bg-blue-700 focus:outline-none disabled:opacity-50"
+        >
+          Generate Image
+        </button>
+
+        <p
+          id="loading-message"
+          class="hidden text-center text-gray-500 italic"
+        >
+          Generating image... Please wait.
+        </p>
+
+        <div id="image-container" class="mt-6 flex justify-center"></div>
+      </div>
+    </section>
+
+    <!-- History Tab Content -->
+    <section id="history" class="hidden p-8">
+      <h1 class="text-2xl font-semibold text-gray-800 mb-6 text-center">
+        Image History
+      </h1>
+      <div class="flex justify-center mb-4">
+        <button
+          id="history-button"
+          onclick="fetchHistory()"
+          class="bg-blue-600 text-white font-semibold px-6 py-3 rounded-lg hover:bg-blue-700 focus:outline-none"
+        >
+          Load Previous Images
+        </button>
+      </div>
+      <p
+        id="history-loading-message"
+        class="hidden text-center text-gray-500 italic mb-4"
+      >
+        Fetching history... Please wait.
+      </p>
+      <div
+        id="history-container"
+        class="grid grid-cols-1 sm:grid-cols-2 gap-4"
+      ></div>
+    </section>
+  </div>
+
+  <script>
+    // Tab switching logic
+    function openTab(tabName) {
+      // Hide both sections
+      document.getElementById('generate').classList.add('hidden');
+      document.getElementById('history').classList.add('hidden');
+      // Deactivate both buttons
+      document
+        .getElementById('tab-generate-btn')
+        .classList.replace('text-blue-600', 'text-gray-600');
+      document
+        .getElementById('tab-generate-btn')
+        .classList.replace('border-blue-600', 'border-transparent');
+      document
+        .getElementById('tab-history-btn')
+        .classList.replace('text-blue-600', 'text-gray-600');
+      document
+        .getElementById('tab-history-btn')
+        .classList.replace('border-blue-600', 'border-transparent');
+
+      // Show the selected section
+      document.getElementById(tabName).classList.remove('hidden');
+
+      // Activate the corresponding button
+      if (tabName === 'generate') {
+        document
+          .getElementById('tab-generate-btn')
+          .classList.replace('text-gray-600', 'text-blue-600');
+        document
+          .getElementById('tab-generate-btn')
+          .classList.replace('border-transparent', 'border-blue-600');
+      } else {
+        document
+          .getElementById('tab-history-btn')
+          .classList.replace('text-gray-600', 'text-blue-600');
+        document
+          .getElementById('tab-history-btn')
+          .classList.replace('border-transparent', 'border-blue-600');
+      }
+    }
+
+    // Initialize to "Generate Image" tab on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      openTab('generate');
+    });
+
+    // Generate image via API
+    function generateImage() {
+      const promptInput = document.getElementById('prompt').value.trim();
+      const aspectRatio = document.getElementById('aspect-ratio').value;
+      const loadingMessage = document.getElementById('loading-message');
+      const generateButton = document.getElementById('generate-button');
+      const imageContainer = document.getElementById('image-container');
+
+      if (!promptInput) {
+        alert('Please enter a description for your image.');
+        return;
+      }
+
+      loadingMessage.classList.remove('hidden');
+      generateButton.disabled = true;
+      imageContainer.innerHTML = '';
+
+      fetch('/api/generate_image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_input: promptInput, aspect_ratio: aspectRatio }),
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          loadingMessage.classList.add('hidden');
+          generateButton.disabled = false;
+
+          if (data.error) {
+            alert(data.error);
+          } else {
+            const img = document.createElement('img');
+            img.src = `data:image/png;base64,${data.image}`;
+            img.alt = 'Generated Banner';
+            img.className = 'rounded-lg shadow-md';
+            imageContainer.appendChild(img);
+          }
+        })
+        .catch((error) => {
+          loadingMessage.classList.add('hidden');
+          generateButton.disabled = false;
+          alert('Error generating image. Please try again.');
+          console.error('Error:', error);
+        });
+    }
+
+    // Fetch history via API
+    function fetchHistory() {
+      const historyLoadingMessage = document.getElementById('history-loading-message');
+      const historyButton = document.getElementById('history-button');
+      const historyContainer = document.getElementById('history-container');
+
+      historyLoadingMessage.classList.remove('hidden');
+      historyButton.disabled = true;
+      historyContainer.innerHTML = '';
+
+      fetch('/api/get_images')
+        .then((response) => response.json())
+        .then((data) => {
+          historyLoadingMessage.classList.add('hidden');
+          historyButton.disabled = false;
+
+          if (!data.images || data.images.length === 0) {
+            historyContainer.innerHTML = `
+              <div class="col-span-full text-center text-gray-500">
+                No images found.
+              </div>`;
+            return;
+          }
+
+          data.images.forEach((image) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'overflow-hidden rounded-lg shadow-sm bg-gray-50';
+
+            const img = document.createElement('img');
+            img.src = `data:image/png;base64,${image.image_base64}`;
+            img.alt = `Banner: ${image.prompt}`;
+            img.className = 'w-full h-auto object-cover';
+
+            wrapper.appendChild(img);
+            historyContainer.appendChild(wrapper);
+          });
+        })
+        .catch((error) => {
+          historyLoadingMessage.classList.add('hidden');
+          historyButton.disabled = false;
+          alert('Error fetching image history. Please try again.');
+          console.error('Error:', error);
+        });
+    }
+  </script>
+</body>
+</html>
